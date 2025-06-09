@@ -1,91 +1,100 @@
-#!/usr/bin/env python3
-
-from models import db, Activity, Camper, Signup
-from flask_restful import Api, Resource
+from flask import Flask, request, jsonify, make_response
 from flask_migrate import Migrate
-from flask import Flask, make_response, jsonify, request
-import os
-
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DATABASE = os.environ.get("DB_URI", f"sqlite:///{os.path.join(BASE_DIR, 'app.db')}")
+from models import db, Scientist, Planet, Mission
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.json.compact = False
+app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///app.db"
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# ✅ FIRST: initialize SQLAlchemy
 db.init_app(app)
-
-# ✅ THEN: initialize Migrate
 migrate = Migrate(app, db)
 
 @app.route('/')
-def home():
-    return ''
+def index():
+    return {'message': 'Cosmic Travel API running 🚀'}
 
-from models import db, Camper, Activity, Signup
-from flask import request, jsonify, make_response
+### Scientists ###
 
-# GET /campers
-@app.route('/campers', methods=['GET'])
-def get_campers():
-    campers = Camper.query.all()
-    return jsonify([camper.to_dict() for camper in campers]), 200
+@app.route('/scientists', methods=['GET'])
+def get_scientists():
+    scientists = Scientist.query.all()
+    return jsonify([s.to_dict(rules=('-missions',)) for s in scientists])
 
-# POST /campers
-@app.route('/campers', methods=['POST'])
-def create_camper():
+
+@app.route('/scientists/<int:id>', methods=['GET'])
+def get_scientist(id):
+    scientist = Scientist.query.get(id)
+    if not scientist:
+        return jsonify({"error": "Scientist not found"}), 404
+    return scientist.to_dict()
+
+
+@app.route('/scientists', methods=['POST'])
+def create_scientist():
     data = request.get_json()
     try:
-        camper = Camper(name=data['name'], age=data['age'])
-        db.session.add(camper)
-        db.session.commit()
-        return camper.to_dict(), 201
-    except Exception as e:
-        db.session.rollback()
-        return {'error': str(e)}, 400
-
-# GET /campers/<id>
-@app.route('/campers/<int:id>', methods=['GET'])
-def get_camper_by_id(id):
-    camper = Camper.query.get(id)
-    if camper:
-        return camper.to_dict(rules=('activities',)), 200
-    return {'error': 'Camper not found'}, 404
-
-# GET /activities
-@app.route('/activities', methods=['GET'])
-def get_activities():
-    activities = Activity.query.all()
-    return jsonify([activity.to_dict() for activity in activities]), 200
-
-# DELETE /activities/<id>
-@app.route('/activities/<int:id>', methods=['DELETE'])
-def delete_activity(id):
-    activity = Activity.query.get(id)
-    if activity:
-        db.session.delete(activity)
-        db.session.commit()
-        return {}, 204
-    return {'error': 'Activity not found'}, 404
-
-# POST /signups
-@app.route('/signups', methods=['POST'])
-def create_signup():
-    data = request.get_json()
-    try:
-        signup = Signup(
-            time=data['time'],
-            camper_id=data['camper_id'],
-            activity_id=data['activity_id']
+        new_scientist = Scientist(
+            name=data['name'],
+            field_of_study=data['field_of_study']
         )
-        db.session.add(signup)
+        db.session.add(new_scientist)
         db.session.commit()
-        return signup.to_dict(rules=('camper', 'activity')), 201
+        return new_scientist.to_dict(), 201
     except Exception as e:
-        db.session.rollback()
-        return {'error': str(e)}, 400
+        return jsonify({"errors": [str(e)]}), 400
+
+
+@app.route('/scientists/<int:id>', methods=['PATCH'])
+def update_scientist(id):
+    scientist = Scientist.query.get(id)
+    if not scientist:
+        return jsonify({"error": "Scientist not found"}), 404
+    data = request.get_json()
+    try:
+        if 'name' in data:
+            scientist.name = data['name']
+        if 'field_of_study' in data:
+            scientist.field_of_study = data['field_of_study']
+        db.session.commit()
+        return scientist.to_dict(), 202
+    except Exception as e:
+        return jsonify({"errors": [str(e)]}), 400
+
+
+@app.route('/scientists/<int:id>', methods=['DELETE'])
+def delete_scientist(id):
+    scientist = Scientist.query.get(id)
+    if not scientist:
+        return jsonify({"error": "Scientist not found"}), 404
+    db.session.delete(scientist)
+    db.session.commit()
+    return '', 204
+
+### Planets ###
+
+@app.route('/planets', methods=['GET'])
+def get_planets():
+    planets = Planet.query.all()
+    return jsonify([p.to_dict(rules=('-missions',)) for p in planets])
+
+
+### Missions ###
+
+@app.route('/missions', methods=['POST'])
+def create_mission():
+    data = request.get_json()
+    try:
+        new_mission = Mission(
+            name=data['name'],
+            scientist_id=data['scientist_id'],
+            planet_id=data['planet_id']
+        )
+        db.session.add(new_mission)
+        db.session.commit()
+        return new_mission.to_dict(), 201
+    except Exception as e:
+        return jsonify({"errors": [str(e)]}), 400
+
 
 if __name__ == '__main__':
     app.run(port=5555, debug=True)

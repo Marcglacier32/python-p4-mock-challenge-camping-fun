@@ -1,73 +1,58 @@
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import MetaData
 from sqlalchemy.orm import validates
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy_serializer import SerializerMixin
 
-convention = {
-    "ix": "ix_%(column_0_label)s",
-    "uq": "uq_%(table_name)s_%(column_0_name)s",
-    "ck": "ck_%(table_name)s_%(constraint_name)s",
-    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
-    "pk": "pk_%(table_name)s"
-}
+db = SQLAlchemy()
 
-metadata = MetaData(naming_convention=convention)
-db = SQLAlchemy(metadata=metadata)
-
-class Activity(db.Model, SerializerMixin):
-    __tablename__ = 'activities'
-
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String)
-    difficulty = db.Column(db.Integer)
-
-    signups = db.relationship('Signup', backref='activity', cascade="all, delete-orphan")
-    campers = association_proxy('signups', 'camper')
-
-    serialize_rules = ('-signups.activity',)
-
-    def __repr__(self):
-        return f'<Activity {self.id}: {self.name}>'
-
-
-class Camper(db.Model, SerializerMixin):
-    __tablename__ = 'campers'
+class Scientist(db.Model, SerializerMixin):
+    __tablename__ = 'scientists'
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, nullable=False)
-    age = db.Column(db.Integer)
+    field_of_study = db.Column(db.String, nullable=False)
 
-    signups = db.relationship('Signup', backref='camper', cascade="all, delete-orphan")
-    activities = association_proxy('signups', 'activity')
+    missions = db.relationship('Mission', back_populates='scientist', cascade="all, delete")
+    planets = association_proxy('missions', 'planet')
 
-    serialize_rules = ('-signups.camper',)
+    serialize_rules = ('-missions.scientist',)
 
-    @validates('age')
-    def validate_age(self, key, value):
-        if value < 8 or value > 18:
-            raise ValueError("Age must be between 8 and 18.")
+    @validates('name', 'field_of_study')
+    def validate_not_empty(self, key, value):
+        if not value or not value.strip():
+            raise ValueError(f"{key} must be provided.")
         return value
 
-    def __repr__(self):
-        return f'<Camper {self.id}: {self.name}>'
 
-
-class Signup(db.Model, SerializerMixin):
-    __tablename__ = 'signups'
+class Planet(db.Model, SerializerMixin):
+    __tablename__ = 'planets'
 
     id = db.Column(db.Integer, primary_key=True)
-    time = db.Column(db.Integer)
-    camper_id = db.Column(db.Integer, db.ForeignKey('campers.id'))
-    activity_id = db.Column(db.Integer, db.ForeignKey('activities.id'))
+    name = db.Column(db.String, nullable=False)
+    distance_from_earth = db.Column(db.Integer)
+    nearest_star = db.Column(db.String)
 
-    serialize_rules = ('-camper.signups', '-activity.signups')
+    missions = db.relationship('Mission', back_populates='planet', cascade="all, delete")
+    scientists = association_proxy('missions', 'scientist')
 
-    @validates('time')
-    def validate_time(self, key, value):
-        if value < 0 or value > 23:
-            raise ValueError("Time must be between 0 and 23.")
+    serialize_rules = ('-missions.planet',)
+
+
+class Mission(db.Model, SerializerMixin):
+    __tablename__ = 'missions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, nullable=False)
+    scientist_id = db.Column(db.Integer, db.ForeignKey('scientists.id'), nullable=False)
+    planet_id = db.Column(db.Integer, db.ForeignKey('planets.id'), nullable=False)
+
+    scientist = db.relationship('Scientist', back_populates='missions')
+    planet = db.relationship('Planet', back_populates='missions')
+
+    serialize_rules = ('-scientist.missions', '-planet.missions')
+
+    @validates('name', 'scientist_id', 'planet_id')
+    def validate_fields(self, key, value):
+        if not value:
+            raise ValueError(f"{key} must be provided.")
         return value
-
-    def __repr__(self):
-        return f'<Signup {self.id}>'

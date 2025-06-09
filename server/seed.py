@@ -1,71 +1,24 @@
-from random import randint, choice as rc
-
-from faker import Faker
-
+from models import db, Scientist, Planet, Mission
 from app import app
-from models import db, Activity, Signup, Camper
 
-fake = Faker()
+with app.app_context():
+    print("Deleting existing data...")
+    Mission.query.delete()
+    Scientist.query.delete()
+    Planet.query.delete()
 
+    print("Seeding planets...")
+    planet1 = Planet(name="TauCeti E", distance_from_earth=1234567, nearest_star="TauCeti")
+    planet2 = Planet(name="Maxxor", distance_from_earth=99887766, nearest_star="Canus Minor")
 
-def create_activities():
-    activities = []
-    for _ in range(10):
-        a = Activity(
-            name=fake.sentence(),
-            difficulty=randint(1, 5)
-        )
-        activities.append(a)
+    print("Seeding scientists...")
+    scientist1 = Scientist(name="Mel T. Valent", field_of_study="xenobiology")
+    scientist2 = Scientist(name="P. Legrange", field_of_study="orbital mechanics")
 
-    return activities
+    print("Seeding missions...")
+    mission1 = Mission(name="Explore TauCeti", scientist=scientist1, planet=planet1)
+    mission2 = Mission(name="Study Maxxor Atmosphere", scientist=scientist2, planet=planet2)
 
-
-def create_campers():
-    campers = []
-    for _ in range(5):
-        c = Camper(
-            name=fake.name(),
-            age=rc(range(8, 19))
-        )
-        campers.append(c)
-
-    return campers
-
-
-def create_signups(activities, campers):
-    signups = []
-    for _ in range(20):
-        s = Signup(
-            time=rc(range(24)),
-            camper_id=rc([camper.id for camper in campers]),
-            activity_id=rc([activity.id for activity in activities])
-        )
-        signups.append(s)
-
-    return signups
-
-
-if __name__ == '__main__':
-
-    with app.app_context():
-        print("Clearing db...")
-        Activity.query.delete()
-        Signup.query.delete()
-        Camper.query.delete()
-
-        print("Seeding activities...")
-        activities = create_activities()
-        db.session.add_all(activities)
-        db.session.commit()
-
-        print("Seeding campers...")
-        campers = create_campers()
-        db.session.add_all(campers)
-        db.session.commit()
-
-        print("Seeding signups...")
-        signups = create_signups(activities, campers)
-        db.session.add_all(signups)
-        db.session.commit()
-
-        print("Done seeding!")
+    db.session.add_all([planet1, planet2, scientist1, scientist2, mission1, mission2])
+    db.session.commit()
+    print("✅ Seeding complete.")
